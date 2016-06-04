@@ -1,8 +1,9 @@
 
 ######### V1.2 #############
 import subprocess,os,os.path
+from Crypto.Cipher import AES
 import time
-import random
+import random, struct
 class colors:
 	YELLOW = '\033[93m'
 	BOLD = '\033[1m'
@@ -181,6 +182,64 @@ def add_metadata(output_file):
 		import_metadata = subprocess.call(['ffmpeg' ,'-i' , output_file , "-i", meta_file, "-map_metadata", "1" , '-codec' ,'copy' ,output_file ])	
 			
 		
+###############################################################################################
+def encrypt_album():
+	key = "0123456789abcdef"
+	iv = 16 * '\x00'
+	chunksize=64*1024
+	input_dir, output_album, bitrate, list_of_tracks = asking_for_album()
+        start_time = time.time()
+        for track in list_of_tracks:
+                
+				
+		track_ = track.split(".")[0] #remove the extention file from the name of the input track
+		out_filename = track_ + '.enc'
+		out_filename = os.path.join(output_album, out_filename)
+		print out_filename
+
+		track = os.path.join(input_dir, track)
+		encryptor = AES.new(key, AES.MODE_CBC, iv)
+		filesize = os.path.getsize(track)
+		
+		with open(track, 'rb') as infile:
+        		with open(out_filename, 'wb') as outfile:
+            			outfile.write(struct.pack('<Q', filesize))
+            			outfile.write(iv)
+
+            			while True:
+                			chunk = infile.read(chunksize)
+                			if len(chunk) == 0:
+                    				break
+                			elif len(chunk) % 16 != 0:
+                    				chunk += ' ' * (16 - len(chunk) % 16)
+
+					outfile.write(encryptor.encrypt(chunk))
+		
+        end_time = time.time()
+        print "time for encrption is: " , (end_time - start_time)
+##############################################################################################
+def decrypt_track():
+	key = "0123456789abcdef"
+        iv = 16 * '\x00'
+        chunksize=64*1024
+        en_track =raw_input("Please insert the full path of your track: ")
+	de_track= en_track.split(".")[0] + '.ogg'
+	
+	#filesize = os.path.getsize(en_track)	
+
+	with open(en_track, 'rb') as infile:
+        	origsize = struct.unpack('<Q', infile.read(struct.calcsize('Q')))[0]
+        	iv = infile.read(16)
+        	decryptor = AES.new(key, AES.MODE_CBC, iv)
+
+        	with open(de_track, 'wb') as outfile:
+            		while True:
+                		chunk = infile.read(chunksize)
+                		if len(chunk) == 0:
+                   			 break
+                		outfile.write(decryptor.decrypt(chunk))
+
+			outfile.truncate(origsize)
 
 ############################################### MAIN ##########################################
 
@@ -196,6 +255,8 @@ while command.upper() != "Q":
 	print " f) select a track to convert to ogg with ffmpeg"
 	print " g) select an album to convert to opus with ffmpeg"
 	print " h) select an album to convert to ogg with ffmpeg"
+	print " i) select an album for encrypting "
+	print " j) play an encrypted track "
 	command = raw_input(colors.BOLD + colors.RED + " Please select one option: " + colors.END)
 	
 	if command.upper() == "A":
@@ -223,3 +284,9 @@ while command.upper() != "Q":
 
 	elif command.upper() == "H":
 		album_ffmpeg_ogg()
+
+	elif command.upper() == "I":
+		encrypt_album()
+
+	elif command.upper() == "J":
+		decrypt_track()
